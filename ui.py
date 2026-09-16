@@ -23,6 +23,7 @@ from schema import ColumnRoles
 
 if TYPE_CHECKING:  # The AI layer is optional; ui must import without it.
     from ai_insights import AINarrative
+    from rfm import RFMResult
 
 ACCENT = "#635BFF"
 LIME = "#C7F36B"  # Brand accent for surfaces and text. Too light to be a data mark.
@@ -383,6 +384,129 @@ def render_dashboard(dataframe: pd.DataFrame, roles: ColumnRoles) -> None:
                 color_discrete_sequence=list(SERIES_COLORS),
             )
             st.plotly_chart(style_chart(figure), width="stretch", config={"displayModeBar": False})
+
+
+def render_customer_segments(result: RFMResult) -> None:
+    """Render customer-level RFM results without recalculating business logic."""
+
+    customers = result.customers
+    total_monetary = float(customers["Monetary"].sum())
+    kpis = st.columns(4)
+    kpis[0].metric("Customers", f"{len(customers):,}")
+    kpis[1].metric("Median recency", f"{customers['Recency'].median():,.0f} days")
+    kpis[2].metric("Average orders", f"{customers['Frequency'].mean():,.1f}")
+    kpis[3].metric(
+        "Customer value",
+        format_number(
+            total_monetary,
+            result.monetary_column,
+            column_values=customers["Monetary"],
+        ),
+    )
+    st.caption(
+        f"Analysis date: {result.analysis_date:%d %b %Y} · one day after the latest valid purchase. "
+        "Lower recency is better; returns reduce monetary value."
+    )
+
+    segment_summary = (
+        customers.groupby("Segment", observed=True)
+        .agg(
+            Customers=(result.customer_column, "size"),
+            Monetary=("Monetary", "sum"),
+            **{"Average recency": ("Recency", "mean"), "Average orders": ("Frequency", "mean")},
+        )
+        .reset_index()
+        .sort_values(["Customers", "Monetary"], ascending=False)
+    )
+
+    charts = st.columns(2, gap="medium")
+    with charts[0]:
+        segment_chart = px.bar(
+            segment_summary.sort_values("Customers"),
+            x="Customers",
+            y="Segment",
+            orientation="h",
+            title="Customers by RFM segment",
+            color="Monetary",
+            color_continuous_scale=[[0, "#D9D5FF"], [1, ACCENT]],
+        )
+        segment_chart.update_traces(marker_line_width=0, hovertemplate="%{y}: %{x:,} customers<extra></extra>")
+        segment_chart.update_layout(coloraxis_colorbar={"title": result.monetary_column})
+        st.plotly_chart(style_chart(segment_chart), width="stretch", config={"displayModeBar": False})
+
+    with charts[1]:
+        scatter_frame = customers.copy()
+        scatter_frame["Bubble value"] = scatter_frame["Monetary"].clip(lower=0) + 1
+        customer_chart = px.scatter(
+            scatter_frame,
+            x="Recency",
+            y="Frequency",
+            size="Bubble value",
+            color="Segment",
+            hover_name=result.customer_column,
+            hover_data={"Monetary": ":,.2f", "Bubble value": False},
+            size_max=38,
+            title="Recency × frequency customer map",
+            color_discrete_sequence=list(SERIES_COLORS),
+        )
+        customer_chart.update_xaxes(autorange="reversed", title="Recency in days · more recent →")
+        customer_chart.update_yaxes(title="Orders")
+        st.plotly_chart(style_chart(customer_chart), width="stretch", config={"displayModeBar": False})
+
+    st.markdown('<div class="section-label">Segment performance</div>', unsafe_allow_html=True)
+    st.dataframe(
+        segment_summary.style.format(
+            {
+                "Monetary": "{:,.2f}",
+                "Average recency": "{:,.1f}",
+                "Average orders": "{:,.1f}",
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+
+    table_columns = [
+        result.customer_column,
+        "Segment",
+        "Recency",
+        "Frequency",
+        "Monetary",
+        "R Score",
+        "F Score",
+        "M Score",
+        "RFM Score",
+        "RFM Code",
+    ]
+    st.markdown('<div class="section-label">Customer detail</div>', unsafe_allow_html=True)
+    st.dataframe(customers[table_columns], hide_index=True, width="stretch", height=420)
+    st.download_button(
+        "Download customer segments",
+        data=customers[table_columns].to_csv(index=False).encode("utf-8-sig"),
+        file_name="ada_customer_segments.csv",
+        mime="text/csv",
+        width="stretch",
+    )
+
+    quality = result.quality
+    with st.expander("RFM data quality audit"):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    ("Input rows", quality.input_rows),
+                    ("Rows used", quality.rows_used),
+                    ("Rows dropped", quality.dropped_rows),
+                    ("Missing customer ID", quality.missing_customer_rows),
+                    ("Invalid transaction date", quality.invalid_date_rows),
+                    ("Invalid monetary value", quality.invalid_monetary_rows),
+                    ("Missing order ID · row fallback used", quality.missing_order_id_rows),
+                    ("Customers without a positive purchase", quality.customers_excluded_without_purchase),
+                ],
+                columns=["Check", "Count"],
+            ),
+            hide_index=True,
+            width="stretch",
+        )
 
 
 def _chat_answer_figure(result: QueryAnswer) -> go.Figure | None:

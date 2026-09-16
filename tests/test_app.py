@@ -6,6 +6,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 from streamlit.testing.v1 import AppTest
@@ -95,7 +96,7 @@ class SourceSelectionTests(unittest.TestCase):
         app.segmented_control[0].set_value(None).run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(len(app.tabs), 6)
+        self.assertEqual(len(app.tabs), 7)
 
 
 class StaleModuleTests(unittest.TestCase):
@@ -161,7 +162,7 @@ class OptionalAiLayerTests(unittest.TestCase):
 
         self.assertFalse(app.exception)
         # The deterministic product is untouched: every tab, every KPI, every chart.
-        self.assertEqual(len(app.tabs), 6)
+        self.assertEqual(len(app.tabs), 7)
         self.assertEqual(len(app.metric), 4)
         self.assertEqual(len(app.get("plotly_chart")), 7)
         self.assertTrue(
@@ -176,11 +177,50 @@ class AppSmokeTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertEqual(
             [tab.label for tab in app.tabs],
-            ["Executive brief", "Ask ADA", "Live dashboard", "Explore", "Evidence ledger", "Data room"],
+            [
+                "Executive brief",
+                "Ask ADA",
+                "Live dashboard",
+                "Customer segments",
+                "Explore",
+                "Evidence ledger",
+                "Data room",
+            ],
         )
         # Six dashboard charts, plus the one Explore draws for its default columns.
         self.assertEqual(len(app.get("plotly_chart")), 7)
         self.assertEqual(len(app.dataframe), 4)
+
+    def test_customer_segments_explain_required_mapping_when_customer_id_is_absent(self):
+        app = AppTest.from_file("app.py", default_timeout=45).run()
+
+        self.assertFalse(app.exception)
+        customer_picker = next(box for box in app.selectbox if box.label == "Customer ID")
+        self.assertEqual(customer_picker.value, "None")
+        self.assertTrue(
+            any("RFM needs a customer identifier" in str(message.value) for message in app.info)
+        )
+
+    def test_customer_columns_render_rfm_results(self):
+        customer_data = pd.DataFrame(
+            {
+                "Customer ID": ["A", "A", "B", "C", "C"],
+                "Order Date": pd.to_datetime(
+                    ["2026-01-10", "2026-01-12", "2026-01-05", "2025-10-01", "2025-11-01"]
+                ),
+                "Order ID": ["A1", "A2", "B1", "C1", "C2"],
+                "Revenue": [100.0, 150.0, 80.0, 300.0, 250.0],
+                "Product": ["Core", "Growth", "Core", "Enterprise", "Enterprise"],
+            }
+        )
+        with patch("demo_data.make_demo_data", return_value=customer_data):
+            app = AppTest.from_file("app.py", default_timeout=45).run()
+
+        self.assertFalse(app.exception)
+        customer_picker = next(box for box in app.selectbox if box.label == "Customer ID")
+        self.assertEqual(customer_picker.value, "Customer ID")
+        self.assertTrue(any(button.label == "Download customer segments" for button in app.download_button))
+        self.assertTrue(any(metric.label == "Customers" and metric.value == "3" for metric in app.metric))
 
     def test_drill_down_focuses_the_whole_analysis(self):
         app = AppTest.from_file("app.py", default_timeout=45).run()
@@ -238,7 +278,7 @@ class AppSmokeTests(unittest.TestCase):
         picker.set_value("SaaS Subscriptions").run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(len(app.tabs), 6)
+        self.assertEqual(len(app.tabs), 7)
         rendered = " ".join(str(block.value) for block in app.markdown)
         self.assertIn("SaaS Subscriptions · sample", rendered)
 

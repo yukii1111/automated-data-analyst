@@ -28,7 +28,7 @@ _HERE = Path(__file__).resolve().parent
 _LOCAL_MODULES = (  # dependency order: a module lists only modules above it
     "formatting", "schema", "timeseries", "anomalies", "forecasting", "aggregation",
     "analysis", "autovis", "file_io", "demo_data", "business_insights", "nlq",
-    "pipeline", "ai_insights", "ui",
+    "pipeline", "rfm", "ai_insights", "ui",
 )
 
 
@@ -100,6 +100,7 @@ from pipeline import (  # noqa: E402
     prepare_analysis,
     schema_frame,
 )
+from rfm import RFMCalculationError, calculate_rfm  # noqa: E402
 
 # The AI layer is optional, and so is everything it depends on. Importing it
 # at module scope meant one missing package took down the whole product --
@@ -130,6 +131,7 @@ from ui import (  # noqa: E402
     render_chat_answer,
     render_chat_fallback,
     render_chat_rejected,
+    render_customer_segments,
     render_dashboard,
     render_dataset_bar,
     render_evidence,
@@ -541,6 +543,11 @@ roles = apply_role_selection(
     dimension=selected_dimension,
 )
 
+# Customer analysis always uses the complete prepared table. A product or
+# region drill-down is useful for the general dashboard, but silently applying
+# that slice to customer lifetime metrics would change their meaning.
+rfm_dataframe = prepared.dataframe
+
 focus_value = None
 focus_values = focus_options(dataframe, roles)
 if focus_values:
@@ -562,8 +569,16 @@ render_dataset_bar(source_name, dataframe, roles, focus=focus_value)
 render_brief(brief)
 render_kpis(brief)
 
-executive_tab, ask_tab, dashboard_tab, explore_tab, evidence_tab, data_tab = st.tabs(
-    ["Executive brief", "Ask ADA", "Live dashboard", "Explore", "Evidence ledger", "Data room"]
+executive_tab, ask_tab, dashboard_tab, customer_tab, explore_tab, evidence_tab, data_tab = st.tabs(
+    [
+        "Executive brief",
+        "Ask ADA",
+        "Live dashboard",
+        "Customer segments",
+        "Explore",
+        "Evidence ledger",
+        "Data room",
+    ]
 )
 
 with executive_tab:
@@ -628,6 +643,93 @@ with dashboard_tab:
         "Trend, contribution, distribution, and the strongest measurable relationship—generated without chart configuration.",
     )
     render_dashboard(dataframe, roles)
+
+with customer_tab:
+    render_section_heading(
+        "Customer intelligence",
+        "Turn transactions into customer segments",
+        "Map the customer, purchase date, value, and optional order fields. ADA then calculates "
+        "recency, frequency, and monetary value from the complete dataset, including net returns.",
+    )
+
+    rfm_columns = list(rfm_dataframe.columns)
+
+    def preferred_rfm_column(tokens: tuple[str, ...], options: list[str]) -> str | None:
+        return next(
+            (
+                column
+                for column in options
+                if any(token in str(column).lower().replace("_", " ") for token in tokens)
+            ),
+            None,
+        )
+
+    customer_default = preferred_rfm_column(
+        ("customer id", "customer", "client id", "client", "user id", "member id"),
+        rfm_columns,
+    )
+    order_default = preferred_rfm_column(
+        ("order id", "order number", "invoice", "transaction id"),
+        rfm_columns,
+    )
+    rfm_date_options = [
+        column
+        for column in rfm_columns
+        if pd.api.types.is_datetime64_any_dtype(rfm_dataframe[column])
+    ]
+    rfm_monetary_options = [
+        column for column in rfm_columns if pd.api.types.is_numeric_dtype(rfm_dataframe[column])
+    ]
+
+    mapping_columns = st.columns(4)
+    customer_choice = mapping_columns[0].selectbox(
+        "Customer ID",
+        ["None", *rfm_columns],
+        index=rfm_columns.index(customer_default) + 1 if customer_default in rfm_columns else 0,
+        key="rfm_customer_column",
+        help="A stable identifier shared by every transaction from the same customer.",
+    )
+    date_choice = mapping_columns[1].selectbox(
+        "Transaction date",
+        ["None", *rfm_date_options],
+        index=rfm_date_options.index(detected.date) + 1 if detected.date in rfm_date_options else 0,
+        key="rfm_date_column",
+    )
+    monetary_choice = mapping_columns[2].selectbox(
+        "Monetary value",
+        ["None", *rfm_monetary_options],
+        index=rfm_monetary_options.index(detected.measure) + 1
+        if detected.measure in rfm_monetary_options
+        else 0,
+        key="rfm_monetary_column",
+    )
+    order_choice = mapping_columns[3].selectbox(
+        "Order ID · optional",
+        ["None", *rfm_columns],
+        index=rfm_columns.index(order_default) + 1 if order_default in rfm_columns else 0,
+        key="rfm_order_column",
+        help="When omitted, each positive transaction row counts as one purchase.",
+    )
+
+    required_mapping = (customer_choice, date_choice, monetary_choice)
+    if "None" in required_mapping:
+        st.info(
+            "RFM needs a customer identifier, transaction date, and monetary value. "
+            "Choose those three fields above; Order ID is optional."
+        )
+    else:
+        try:
+            rfm_result = calculate_rfm(
+                rfm_dataframe,
+                customer_column=customer_choice,
+                date_column=date_choice,
+                monetary_column=monetary_choice,
+                order_column=None if order_choice == "None" else order_choice,
+            )
+        except RFMCalculationError as error:
+            st.warning(f"ADA could not build customer segments: {error}")
+        else:
+            render_customer_segments(rfm_result)
 
 with explore_tab:
     render_explore(dataframe, roles)
