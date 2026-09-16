@@ -6,6 +6,7 @@ from io import BytesIO
 import pandas as pd
 
 from file_io import list_excel_sheets, list_sample_datasets, read_tabular_file, safe_csv
+from rfm import calculate_rfm
 
 
 class FileParsingTests(unittest.TestCase):
@@ -79,6 +80,26 @@ class FileParsingTests(unittest.TestCase):
                 frame = read_tabular_file(path.read_bytes(), path.name)
                 self.assertGreater(len(frame), 0)
                 self.assertGreater(len(frame.columns), 1)
+
+    def test_customer_orders_sample_is_ready_for_rfm(self):
+        samples = list_sample_datasets()
+        self.assertIn("Customer Orders", samples)
+        path = samples["Customer Orders"]
+        frame = read_tabular_file(path.read_bytes(), path.name)
+
+        self.assertTrue(
+            {"Customer ID", "Order ID", "Order Date", "Revenue"}.issubset(frame.columns)
+        )
+        self.assertGreater(len(frame), frame["Customer ID"].nunique())
+        result = calculate_rfm(
+            frame,
+            customer_column="Customer ID",
+            date_column="Order Date",
+            monetary_column="Revenue",
+            order_column="Order ID",
+        )
+        self.assertEqual(len(result.customers), frame["Customer ID"].nunique())
+        self.assertGreaterEqual(result.customers["Segment"].nunique(), 5)
 
 
 

@@ -149,6 +149,7 @@ SAMPLE_NOTES = {
     "SaaS Subscriptions": "Monthly recurring revenue by plan and region. Contains a real drop in April 2025 for the anomaly radar to find.",
     "Support Tickets": "Operational tickets by team and priority. No revenue column, and the forecast admits it cannot beat assuming no change.",
     "Ecommerce Orders": "Orders by category and channel, with returns as negative rows so totals have to handle mixed signs.",
+    "Customer Orders": "Repeat-customer ecommerce orders designed for RFM segmentation, including recent, loyal, lapsing, and low-value behaviour.",
 }
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -682,18 +683,22 @@ with customer_tab:
     ]
 
     mapping_columns = st.columns(4)
+    # Widget state survives Streamlit reruns. Scope it to the source so a
+    # "None" mapping from one dataset cannot override a useful default after
+    # the user switches to a different file or sample.
+    rfm_mapping_key = dataset_fingerprint(rfm_dataframe, detected, source_name)[:12]
     customer_choice = mapping_columns[0].selectbox(
         "Customer ID",
         ["None", *rfm_columns],
         index=rfm_columns.index(customer_default) + 1 if customer_default in rfm_columns else 0,
-        key="rfm_customer_column",
+        key=f"rfm_customer_column_{rfm_mapping_key}",
         help="A stable identifier shared by every transaction from the same customer.",
     )
     date_choice = mapping_columns[1].selectbox(
         "Transaction date",
         ["None", *rfm_date_options],
         index=rfm_date_options.index(detected.date) + 1 if detected.date in rfm_date_options else 0,
-        key="rfm_date_column",
+        key=f"rfm_date_column_{rfm_mapping_key}",
     )
     monetary_choice = mapping_columns[2].selectbox(
         "Monetary value",
@@ -701,13 +706,13 @@ with customer_tab:
         index=rfm_monetary_options.index(detected.measure) + 1
         if detected.measure in rfm_monetary_options
         else 0,
-        key="rfm_monetary_column",
+        key=f"rfm_monetary_column_{rfm_mapping_key}",
     )
     order_choice = mapping_columns[3].selectbox(
         "Order ID · optional",
         ["None", *rfm_columns],
         index=rfm_columns.index(order_default) + 1 if order_default in rfm_columns else 0,
-        key="rfm_order_column",
+        key=f"rfm_order_column_{rfm_mapping_key}",
         help="When omitted, each positive transaction row counts as one purchase.",
     )
 

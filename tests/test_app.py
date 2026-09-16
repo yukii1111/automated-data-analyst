@@ -222,6 +222,27 @@ class AppSmokeTests(unittest.TestCase):
         self.assertTrue(any(button.label == "Download customer segments" for button in app.download_button))
         self.assertTrue(any(metric.label == "Customers" and metric.value == "3" for metric in app.metric))
 
+    def test_customer_orders_sample_opens_as_a_complete_rfm_demo(self):
+        app = AppTest.from_file("app.py", default_timeout=90).run()
+        app.segmented_control[0].set_value("Try a sample dataset").run()
+
+        self.assertFalse(app.exception)
+        sample_picker = next(box for box in app.selectbox if box.label == "Sample dataset")
+        self.assertEqual(sample_picker.value, "Customer Orders")
+        expected_mappings = {
+            "Customer ID": "Customer ID",
+            "Transaction date": "Order Date",
+            "Monetary value": "Revenue",
+            "Order ID · optional": "Order ID",
+        }
+        for label, expected in expected_mappings.items():
+            picker = next(box for box in app.selectbox if box.label == label)
+            self.assertEqual(picker.value, expected)
+        self.assertTrue(
+            any(metric.label == "Customers" and metric.value == "330" for metric in app.metric)
+        )
+        self.assertTrue(any(button.label == "Download customer segments" for button in app.download_button))
+
     def test_drill_down_focuses_the_whole_analysis(self):
         app = AppTest.from_file("app.py", default_timeout=45).run()
         focus_box = next(box for box in app.selectbox if box.label.startswith("Drill into"))
