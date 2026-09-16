@@ -41,6 +41,21 @@ RISE, FALL = "#1B6FB5", "#B5761B"
 INK = "#101114"
 MUTED = "#667085"
 
+# RFM segments need stable semantic colours: growth and value lean cool,
+# intervention segments lean warm, and inactive customers recede in grey.
+# Keeping this mapping explicit also prevents Plotly from cycling a shorter
+# palette and accidentally giving two customer groups the same colour.
+RFM_SEGMENT_COLORS = {
+    "Champions": "#5B4BD8",
+    "Loyal Customers": "#2774AE",
+    "Potential Loyalists": "#0E8F83",
+    "New Customers": "#5C8A1B",
+    "At Risk": "#C47A16",
+    "Needs Attention": "#D05A67",
+    "Lost Customers": "#7C8597",
+    "Others": "#A5ADBA",
+}
+
 
 def inject_styles() -> None:
     stylesheet = Path(__file__).with_name("assets").joinpath("styles.css").read_text(encoding="utf-8")
@@ -427,11 +442,11 @@ def render_customer_segments(result: RFMResult) -> None:
             y="Segment",
             orientation="h",
             title="Customers by RFM segment",
-            color="Monetary",
-            color_continuous_scale=[[0, "#D9D5FF"], [1, ACCENT]],
+            color="Segment",
+            color_discrete_map=RFM_SEGMENT_COLORS,
         )
         segment_chart.update_traces(marker_line_width=0, hovertemplate="%{y}: %{x:,} customers<extra></extra>")
-        segment_chart.update_layout(coloraxis_colorbar={"title": result.monetary_column})
+        segment_chart.update_layout(showlegend=False)
         st.plotly_chart(style_chart(segment_chart), width="stretch", config={"displayModeBar": False})
 
     with charts[1]:
@@ -447,7 +462,10 @@ def render_customer_segments(result: RFMResult) -> None:
             hover_data={"Monetary": ":,.2f", "Bubble value": False},
             size_max=38,
             title="Recency × frequency customer map",
-            color_discrete_sequence=list(SERIES_COLORS),
+            color_discrete_map=RFM_SEGMENT_COLORS,
+        )
+        customer_chart.update_traces(
+            marker={"opacity": 0.76, "line": {"width": 0.8, "color": "white"}}
         )
         customer_chart.update_xaxes(autorange="reversed", title="Recency in days · more recent →")
         customer_chart.update_yaxes(title="Orders")
