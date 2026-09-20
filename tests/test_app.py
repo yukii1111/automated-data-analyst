@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 from streamlit.testing.v1 import AppTest
 
+from ai_insights import AIAction, AINarrative
 from schema import ColumnRoles
 
 
@@ -171,6 +172,20 @@ class OptionalAiLayerTests(unittest.TestCase):
 
 
 class AppSmokeTests(unittest.TestCase):
+    @staticmethod
+    def customer_data() -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "Customer ID": ["A", "A", "B", "C", "C"],
+                "Order Date": pd.to_datetime(
+                    ["2026-01-10", "2026-01-12", "2026-01-05", "2025-10-01", "2025-11-01"]
+                ),
+                "Order ID": ["A1", "A2", "B1", "C1", "C2"],
+                "Revenue": [100.0, 150.0, 80.0, 300.0, 250.0],
+                "Product": ["Core", "Growth", "Core", "Enterprise", "Enterprise"],
+            }
+        )
+
     def test_demo_renders_complete_product(self):
         app = AppTest.from_file("app.py", default_timeout=45).run()
 
@@ -203,18 +218,7 @@ class AppSmokeTests(unittest.TestCase):
         )
 
     def test_customer_columns_render_rfm_results(self):
-        customer_data = pd.DataFrame(
-            {
-                "Customer ID": ["A", "A", "B", "C", "C"],
-                "Order Date": pd.to_datetime(
-                    ["2026-01-10", "2026-01-12", "2026-01-05", "2025-10-01", "2025-11-01"]
-                ),
-                "Order ID": ["A1", "A2", "B1", "C1", "C2"],
-                "Revenue": [100.0, 150.0, 80.0, 300.0, 250.0],
-                "Product": ["Core", "Growth", "Core", "Enterprise", "Enterprise"],
-            }
-        )
-        with patch("demo_data.make_demo_data", return_value=customer_data):
+        with patch("demo_data.make_demo_data", return_value=self.customer_data()):
             app = AppTest.from_file("app.py", default_timeout=45).run()
 
         self.assertFalse(app.exception)
@@ -229,6 +233,67 @@ class AppSmokeTests(unittest.TestCase):
         self.assertTrue(
             any("AI customer insights are optional" in str(message.value) for message in app.info)
         )
+
+    def test_customer_ai_panel_renders_a_mocked_structured_response(self):
+        narrative = AINarrative(
+            executive_summary="Retention needs a targeted recovery plan.",
+            strategic_read="At-risk value and early retention provide the priorities.",
+            actions=[
+                AIAction(
+                    title="Recover at-risk customers",
+                    recommendation="Test a time-boxed reactivation campaign.",
+                    evidence="The calculated RFM summary identifies an at-risk segment.",
+                    confidence="medium",
+                )
+            ],
+            watchouts=["This is an interpretation, not causal proof."],
+        )
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-only-key"}),
+            patch("demo_data.make_demo_data", return_value=self.customer_data()),
+            patch("ai_insights.generate_ai_narrative", return_value=narrative) as generate,
+        ):
+            app = AppTest.from_file("app.py", default_timeout=45).run()
+            button = next(
+                item for item in app.button if item.label == "Generate AI customer insights"
+            )
+            button.click().run()
+
+            # An ordinary rerun reuses the result instead of making another paid call.
+            app.run()
+            generate.assert_called_once()
+            cached_render = " ".join(str(block.value) for block in app.markdown)
+            self.assertIn("Retention needs a targeted recovery plan", cached_render)
+
+            # A different dataset must never inherit the previous dataset's narrative.
+            app.segmented_control[0].set_value("Try a sample dataset").run()
+
+        self.assertFalse(app.exception)
+        generate.assert_called_once()
+        self.assertIsNotNone(generate.call_args.kwargs["rfm_result"])
+        self.assertIsNotNone(generate.call_args.kwargs["cohort_result"])
+        rendered = " ".join(str(block.value) for block in app.markdown)
+        self.assertNotIn("Retention needs a targeted recovery plan", rendered)
+        self.assertNotIn("Recover at-risk customers", rendered)
+        self.assertNotIn("test-only-key", rendered)
+
+    def test_customer_ai_failure_does_not_break_the_dashboard(self):
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-only-key"}),
+            patch("demo_data.make_demo_data", return_value=self.customer_data()),
+            patch("ai_insights.generate_ai_narrative", side_effect=RuntimeError("offline")),
+        ):
+            app = AppTest.from_file("app.py", default_timeout=45).run()
+            button = next(
+                item for item in app.button if item.label == "Generate AI customer insights"
+            )
+            button.click().run()
+
+        self.assertFalse(app.exception)
+        self.assertTrue(
+            any("temporarily unavailable" in str(message.value) for message in app.error)
+        )
+        self.assertTrue(any(metric.label == "Cohorts" for metric in app.metric))
 
     def test_customer_orders_sample_opens_as_a_complete_rfm_demo(self):
         app = AppTest.from_file("app.py", default_timeout=90).run()
