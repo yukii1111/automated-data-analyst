@@ -48,14 +48,14 @@ MUTED = "#667085"
 # Keeping this mapping explicit also prevents Plotly from cycling a shorter
 # palette and accidentally giving two customer groups the same colour.
 RFM_SEGMENT_COLORS = {
-    "Champions": "#5B4BD8",
-    "Loyal Customers": "#2774AE",
-    "Potential Loyalists": "#0E8F83",
-    "New Customers": "#5C8A1B",
-    "At Risk": "#C47A16",
-    "Needs Attention": "#D05A67",
-    "Lost Customers": "#7C8597",
-    "Others": "#A5ADBA",
+    "Champions": "#7B6CF6",          # lavender violet
+    "Loyal Customers": "#55B9F3",    # glacier blue
+    "Potential Loyalists": "#48D6C2", # mint cyan
+    "New Customers": "#9AD67B",      # fresh leaf
+    "At Risk": "#FFAA7A",            # soft coral
+    "Needs Attention": "#F28DB2",     # blush pink
+    "Lost Customers": "#AAB4C5",      # mist grey
+    "Others": "#C4CBD7",
 }
 
 
@@ -462,12 +462,12 @@ def render_customer_segments(result: RFMResult) -> None:
             color="Segment",
             hover_name=result.customer_column,
             hover_data={"Monetary": ":,.2f", "Bubble value": False},
-            size_max=38,
+            size_max=30,
             title="Recency × frequency customer map",
             color_discrete_map=RFM_SEGMENT_COLORS,
         )
         customer_chart.update_traces(
-            marker={"opacity": 0.76, "line": {"width": 0.8, "color": "white"}}
+            marker={"opacity": 0.64, "line": {"width": 0.7, "color": "rgba(255,255,255,.92)"}}
         )
         customer_chart.update_xaxes(autorange="reversed", title="Recency in days · more recent →")
         customer_chart.update_yaxes(title="Orders")
