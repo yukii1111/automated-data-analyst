@@ -14,7 +14,7 @@
 
 > **Project status:** active portfolio development. The customer intelligence features currently live on `feature/cohort-retention` and will move to `main` after documentation, screenshots, and deployment are complete.
 
-![ADA turns CSV and Excel files into decision-ready business dashboards](assets/ada-social-preview.png)
+![ADA customer intelligence workspace with RFM metrics and customer segments](assets/readme/customer-segments.png)
 
 ## Why this extension exists
 
@@ -57,6 +57,8 @@ The RFM module converts order-level data into one customer-level record:
 
 Important data-quality decisions are explicit. Multiple lines with the same order ID count as one order; returns reduce monetary value; zero- or negative-net orders do not count as purchases; and missing order IDs fall back to separate row-level transactions instead of being incorrectly collapsed.
 
+![RFM segment distribution, recency-frequency customer map, segment performance, and recommended actions](assets/readme/customer-map.png)
+
 ### 2. Cohort retention analysis
 
 Customers are grouped by their first valid purchase month and followed over equal monthly intervals.
@@ -70,6 +72,8 @@ The retention workspace includes:
 - a minimum cohort-size rule for comparative insight cards;
 - deterministic insights for acquisition volume, baseline retention, the latest reliable cohort, and the strongest Month 3 cohort;
 - downloadable retention data and a visible quality audit.
+
+![Monthly customer retention heatmap with weighted retention metrics and cohort sizes](assets/readme/cohort-retention.png)
 
 ### 3. Evidence-grounded AI customer insights
 
@@ -201,6 +205,7 @@ ai_insights.py          Optional typed AI narratives and query planning
 ui.py                   Streamlit components and Plotly visualizations
 samples/                Synthetic datasets for reproducible demonstrations
 tests/                  Unit, integration, edge-case, and app smoke tests
+tools/                  Reproducible sample generation and portfolio screenshot automation
 docs/                   Original project concepts, architecture, privacy, and references
 ```
 
@@ -238,7 +243,8 @@ See the inherited [privacy documentation](docs/privacy.md) and [security policy]
 - [x] Add privacy-aware RFM and cohort summaries to the optional AI layer
 - [x] Test AI rendering, caching, invalidation, and failure isolation without paid API calls
 - [ ] Validate a small set of AI outputs with a real project API key
-- [ ] Add portfolio screenshots and a short walkthrough GIF
+- [x] Add portfolio screenshots
+- [ ] Record a short walkthrough GIF
 - [ ] Deploy the customer intelligence branch as a public demo
 - [ ] Merge the completed portfolio release into `main`
 
