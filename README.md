@@ -1,135 +1,258 @@
-# ADA: Automated Data Analyst
+# ADA Customer Intelligence
 
-[![CI](https://github.com/saineshnakra/automated-data-analyst/actions/workflows/ci.yml/badge.svg)](https://github.com/saineshnakra/automated-data-analyst/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-20a779.svg)](https://github.com/saineshnakra/automated-data-analyst/blob/main/LICENSE)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.59-ff4b4b?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Tests](https://img.shields.io/badge/tests-312%20passed-20a779)](#testing-and-quality)
+[![License: MIT](https://img.shields.io/badge/License-MIT-20a779.svg)](LICENSE)
 
-**Upload a CSV or Excel file. Get a dashboard, an executive brief, anomaly
-flags, a forecast, and answers to plain-English questions — with the calculation
-shown under every number.**
+**A portfolio extension of the open-source [Automated Data Analyst](https://github.com/saineshnakra/automated-data-analyst), adding transaction-aware RFM segmentation, cohort retention analysis, and privacy-conscious AI customer insights.**
 
-[Live demo](https://automated-data-analyst.streamlit.app/) ·
-[Documentation](https://github.com/saineshnakra/automated-data-analyst/tree/main/docs) ·
-[Roadmap](https://github.com/saineshnakra/automated-data-analyst/blob/main/ROADMAP.md) ·
-[Contributing](https://github.com/saineshnakra/automated-data-analyst/blob/main/CONTRIBUTING.md)
+[Current portfolio branch](https://github.com/yukii1111/automated-data-analyst/tree/feature/cohort-retention) ·
+[Original project](https://github.com/saineshnakra/automated-data-analyst) ·
+[Architecture](docs/architecture.md) ·
+[Privacy](docs/privacy.md)
 
-**Source:** [github.com/saineshnakra/automated-data-analyst](https://github.com/saineshnakra/automated-data-analyst)
+> **Project status:** active portfolio development. The customer intelligence features currently live on `feature/cohort-retention` and will move to `main` after documentation, screenshots, and deployment are complete.
 
-![ADA turns CSV and Excel files into decision-ready business dashboards](https://raw.githubusercontent.com/saineshnakra/automated-data-analyst/main/assets/ada-social-preview.png)
+![ADA turns CSV and Excel files into decision-ready business dashboards](assets/ada-social-preview.png)
 
-## What it does
+## Why this extension exists
 
-ADA reads your file, works out which column is the metric, which is the date,
-and which is the segment, then builds the analysis around that.
+The original ADA project already turns an uploaded CSV or Excel workbook into a traceable business dashboard. This extension addresses a common ecommerce and growth analytics gap: a general revenue dashboard can explain *what changed*, but it does not automatically explain *which customers are valuable, which are lapsing, or whether newly acquired customers return*.
 
-- **Dashboard** — trend, segment breakdown, movement waterfall, segment × period heatmap
-- **Ask ADA** — plain-English questions answered locally with pandas, calculation shown
-- **Anomaly flags** — periods outside a calibrated band, sized so a stable series false-alarms about once in twenty analyses
-- **Forecast** — a guarded baseline that refuses to run on thin history and reports when it was no better than assuming no change
-- **Evidence and next steps** — every finding carries its calculation; recommendations are labelled as interpretation, never as cause
-- **Downloads** — Markdown executive brief and cleaned CSV
+The added customer intelligence workflow answers three practical questions:
 
-Limits: 25 MB per file, 250,000 rows analyzed. Formats: `.csv`, `.xlsx`, `.xlsm`.
+1. **Who should the business retain, reward, or reactivate?** — RFM segmentation.
+2. **Do acquired customers return in later months?** — cohort retention analysis.
+3. **What actions are supported by the calculated evidence?** — deterministic recommendations plus an optional AI interpretation layer.
 
-### Nothing to upload? Try a sample
+The result is designed for customer analytics, ecommerce operations, growth analysis, and AI-assisted decision support—not just chart generation.
 
-Pick **Try a sample dataset** in the app, or download one from [`samples/`](https://github.com/saineshnakra/automated-data-analyst/tree/main/samples):
+## Portfolio contribution
 
-| Sample | What it shows |
-|---|---|
-| [SaaS subscriptions](https://github.com/saineshnakra/automated-data-analyst/blob/main/samples/saas-subscriptions.csv) | A real revenue drop the anomaly radar finds, and a forecast that beats no-change |
-| [Support tickets](https://github.com/saineshnakra/automated-data-analyst/blob/main/samples/support-tickets.csv) | No revenue column, and a forecast honest enough to say it is useless |
-| [Ecommerce orders](https://github.com/saineshnakra/automated-data-analyst/blob/main/samples/ecommerce-orders.csv) | Returns as negative rows, so totals cope with mixed signs |
+This repository is an open-source extension, not a claim that the entire base application was built from scratch. The table below separates the inherited product foundation from the work added in this portfolio project.
 
-All three are synthetic, so they carry no privacy or licensing baggage.
+| Area | Open-source foundation | Portfolio extension |
+|---|---|---|
+| General analysis | Automatic schema detection, KPIs, trends, anomalies, forecasts, evidence cards | Customer-specific analysis reuses the prepared full transaction table without corrupting lifetime metrics through dashboard drill-downs |
+| Customer segmentation | No customer lifecycle module | Returns-aware RFM engine, percentile scoring, seven actionable segments, quality audit, filter, and safe CSV export |
+| Retention | No acquisition cohort analysis | Monthly cohort matrix, weighted Month 1/3 metrics, cohort-size reliability rules, heatmap, evidence cards, and export |
+| Business actions | General deterministic recommendations | Segment-specific customer actions and retention signals tied to visible calculations |
+| AI interpretation | Optional general strategic narrative and query planner | RFM and cohort summaries added to a separate customer-insight prompt without sending raw rows or customer/order IDs |
+| Reliability | Existing automated test suite | Edge-case fixtures for returns, duplicate order lines, missing IDs, future cohort periods, small cohorts, AI privacy, caching, and failure isolation |
+| Demo data | SaaS, support, and ecommerce samples | A synthetic 2,899-row customer-orders dataset with 330 customers and realistic lifecycle behaviour |
+| UX | Existing Streamlit design system | Dedicated Customer segments and Retention cohorts workspaces with a softer, consistent visualization palette |
 
-### Ask a business question. Get the number and its calculation.
+## Key features
 
-![Ask ADA a plain-English question and receive a pandas-backed answer with its calculation](https://raw.githubusercontent.com/saineshnakra/automated-data-analyst/main/assets/readme/ask-ada.gif)
+### 1. Transaction-aware RFM segmentation
 
-### Focus on one segment. The whole analysis regroups.
+The RFM module converts order-level data into one customer-level record:
 
-![Drill into one business segment and automatically regroup the dashboard by the next useful dimension](https://raw.githubusercontent.com/saineshnakra/automated-data-analyst/main/assets/readme/drilldown.gif)
+- **Recency** — days since the most recent positive purchase.
+- **Frequency** — number of positive net orders, not number of line items.
+- **Monetary** — total customer value after returns are included.
+- **R/F/M scores** — robust percentile scores from 1 to 5, including small or tied datasets.
+- **Segments** — Champions, Loyal Customers, Potential Loyalists, New Customers, At Risk, Needs Attention, and Lost Customers.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/saineshnakra/automated-data-analyst/main/assets/readme/anomaly-forecast.png" width="49%" alt="ADA dashboard showing anomaly markers, a guarded forecast, movement waterfall, and segment heatmap">
-  <img src="https://raw.githubusercontent.com/saineshnakra/automated-data-analyst/main/assets/readme/evidence-ledger.png" width="49%" alt="ADA evidence ledger showing calculations, anomalies, concentration, correlation, and detected schema">
-</p>
+Important data-quality decisions are explicit. Multiple lines with the same order ID count as one order; returns reduce monetary value; zero- or negative-net orders do not count as purchases; and missing order IDs fall back to separate row-level transactions instead of being incorrectly collapsed.
 
-## Run it
+### 2. Cohort retention analysis
 
-```bash
-git clone https://github.com/saineshnakra/automated-data-analyst.git
+Customers are grouped by their first valid purchase month and followed over equal monthly intervals.
+
+The retention workspace includes:
+
+- a cohort-by-month retention matrix;
+- weighted Month 1 and Month 3 retention metrics;
+- cohort sizes displayed beside each acquisition month;
+- a distinction between observed `0%` retention and future, not-yet-observable periods;
+- a minimum cohort-size rule for comparative insight cards;
+- deterministic insights for acquisition volume, baseline retention, the latest reliable cohort, and the strongest Month 3 cohort;
+- downloadable retention data and a visible quality audit.
+
+### 3. Evidence-grounded AI customer insights
+
+The optional AI layer uses the OpenAI Responses API with Pydantic structured outputs. It interprets calculated summaries; it does not calculate RFM or retention itself.
+
+Only aggregated evidence is included in the customer-insight payload:
+
+- customer counts and total value;
+- average order frequency and median recency;
+- segment-level metrics and deterministic actions;
+- weighted retention rates and computed cohort insights.
+
+Raw uploaded rows, customer IDs, and order IDs are excluded. Results are cached for the current dataset so an ordinary Streamlit rerun does not create another model call. Changing the underlying data invalidates the cached narrative. API failures degrade to a friendly message while the deterministic dashboard remains available.
+
+No API key is required for RFM, cohort analysis, charts, exports, or evidence cards.
+
+## End-to-end workflow
+
+```mermaid
+flowchart TD
+    A[CSV or Excel upload] --> B[Local cleaning and schema detection]
+    B --> C[General business analysis]
+    B --> D[Complete transaction table]
+    D --> E[RFM calculation]
+    D --> F[Cohort retention calculation]
+    E --> G[Segments, actions, filters and exports]
+    F --> H[Retention heatmap, metrics and evidence]
+    C --> I[Executive dashboard and Ask ADA]
+    G --> J[Aggregated customer evidence]
+    H --> J
+    J --> K{Optional API key?}
+    K -- No --> L[Deterministic product remains complete]
+    K -- Yes --> M[Structured AI business interpretation]
+```
+
+The architectural boundary matters: calculation modules (`rfm.py` and `cohort.py`) do not import Streamlit. They can be tested with dataframes and reused from a notebook, API, or another interface. The UI renders their result objects but does not own the business calculations.
+
+## Try the customer intelligence sample
+
+Choose **Try a sample dataset → Customer Orders** in the app. The synthetic sample contains:
+
+- 2,899 transaction rows;
+- 330 customers;
+- repeat purchases across 26 acquisition cohorts;
+- recent, loyal, lapsing, and low-value behaviour;
+- negative return rows for testing net customer value.
+
+It contains no real customer data. The source is available at [`samples/customer-orders.csv`](samples/customer-orders.csv), and its reproducible generator is [`tools/generate_customer_orders.py`](tools/generate_customer_orders.py).
+
+## Run locally
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/yukii1111/automated-data-analyst.git
 cd automated-data-analyst
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+git switch feature/cohort-retention
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
-No API key required. The app opens with a built-in demo dataset.
+### macOS or Linux
 
-## Does my data leave my machine?
+```bash
+git clone https://github.com/yukii1111/automated-data-analyst.git
+cd automated-data-analyst
+git switch feature/cohort-retention
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
 
-**Running ADA yourself: no.** Cleaning, schema detection, every chart, and every
-Ask ADA answer are computed locally with pandas, with no network call at all.
+The application opens with a built-in demo. To exercise the new modules, select the **Customer Orders** sample. Upload limits are 25 MB per file and 250,000 analyzed rows; supported formats are `.csv`, `.xlsx`, and `.xlsm`.
 
-**Using the hosted demo: your file is uploaded to a Streamlit server**, because
-that is what uploading a file to a website means. It is held in memory for the
-session and never written to a database. If that matters for your data, run ADA
-locally — it is four commands above and needs no key.
+### Optional AI configuration
 
-An optional AI layer adds two things when you supply a key: a query planner for
-questions the rules cannot parse, and a strategic narrative. The planner shows
-its proposed calculation and waits for your confirmation before ADA executes it
-locally. **Neither ever receives your rows.** They receive column names, types,
-and already-computed evidence — and because an evidence sentence names the
-segment it is about, a segment label such as a customer or product name can
-appear in it. Nothing else from a cell does. Model-generated code is never
-executed.
+The deterministic application needs no API key. To test the optional AI interpretation, enter a project-specific OpenAI API key in the password field in the sidebar. The field is session-only and is not written to the repository.
 
-Full details: [Privacy](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/privacy.md) · [SECURITY.md](https://github.com/saineshnakra/automated-data-analyst/blob/main/SECURITY.md)
+Alternatively, a local deployment can provide `OPENAI_API_KEY` through its environment or Streamlit secrets. Never commit a real key to GitHub.
 
-## Documentation
+## Testing and quality
 
-| Page | What you get |
+The current portfolio branch passes **312 automated tests** using Python's built-in `unittest` framework.
+
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+Static checks use Ruff:
+
+```bash
+python -m ruff check .
+```
+
+The added tests cover:
+
+- order-line deduplication and net returns;
+- invalid dates, monetary values, customer IDs, and order IDs;
+- reproducible analysis dates and small/tied RFM samples;
+- cohort eligibility, future periods, zero retention, and weighted metrics;
+- minimum cohort sizes for comparative claims;
+- exclusion of raw identifiers from AI payloads;
+- structured AI responses, caching, dataset invalidation, and API failure isolation;
+- complete Streamlit rendering with and without the optional AI dependency.
+
+## Technology
+
+| Layer | Tools |
 |---|---|
-| [Concepts](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/concepts.md) | The words ADA uses: measure, segment, period, evidence, plan |
-| [How it works](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/how-it-works.md) | Upload to dashboard, step by step |
-| [Architecture](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/architecture.md) | Which file does what, and why |
-| [Reference](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/README.md#reference) | One page per pipeline step |
-| [Development](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/development.md) | Setup, tests, CI, conventions |
-| [FAQ](https://github.com/saineshnakra/automated-data-analyst/blob/main/docs/faq.md) | Short answers to common questions |
+| Application | Python, Streamlit |
+| Data processing | pandas, NumPy |
+| Visualization | Plotly |
+| File support | CSV, Excel, openpyxl |
+| AI integration | OpenAI Responses API, Pydantic structured outputs |
+| Testing and quality | unittest, Streamlit AppTest, Ruff |
 
-For the design story behind the project, read
-[I Built an AI Data Analyst That Tells You When It Hallucinates](https://medium.com/@saineshnakra/i-built-an-ai-data-analyst-that-tells-you-when-it-hallucinates-6051609c3f4a).
+## Project structure
 
-## Contributing
+```text
+app.py                  Streamlit entry point and workflow orchestration
+pipeline.py             File preparation, cleaning, role selection, and focus logic
+business_insights.py    General evidence and deterministic recommendations
+rfm.py                  Customer-level RFM calculation and segment actions
+cohort.py               Monthly cohort retention calculation and insights
+ai_insights.py          Optional typed AI narratives and query planning
+ui.py                   Streamlit components and Plotly visualizations
+samples/                Synthetic datasets for reproducible demonstrations
+tests/                  Unit, integration, edge-case, and app smoke tests
+docs/                   Original project concepts, architecture, privacy, and references
+```
 
-Good places to start: a new question shape for Ask ADA, a new deterministic
-metric, schema-detection fixtures, chart accessibility, adversarial test data.
+## Privacy and trust model
 
-Read [CONTRIBUTING.md](https://github.com/saineshnakra/automated-data-analyst/blob/main/CONTRIBUTING.md), browse the
-[good first issues](https://github.com/saineshnakra/automated-data-analyst/labels/good%20first%20issue),
-or pick something from the [roadmap](https://github.com/saineshnakra/automated-data-analyst/blob/main/ROADMAP.md).
+When run locally, cleaning, customer calculations, charts, exports, and rule-based questions stay on the machine.
 
-Every new recommendation needs a test and the calculation that supports it.
+If the optional AI layer is enabled:
 
-## Building on ADA?
+- the general query planner receives schema information and returns a calculation plan for approval;
+- customer insights receive computed aggregates and evidence, not uploaded rows;
+- model-generated code is never executed;
+- `store=False` is used for model responses;
+- the calculated dashboard remains authoritative and AI text is labelled as interpretation.
 
-A link back to this repo is appreciated. If you've shipped something with it,
-[open an issue](https://github.com/saineshnakra/automated-data-analyst/issues/new) and I'll list it here.
+When using any hosted Streamlit deployment, uploaded files necessarily reach that Streamlit server for in-memory processing. Sensitive data should be analyzed locally unless the deployment's controls have been reviewed.
 
-ADA is MIT licensed, so you are free to use, change and ship it — commercially
-too. The only thing the licence asks is that the copyright notice travels with
-the code.
+See the inherited [privacy documentation](docs/privacy.md) and [security policy](SECURITY.md) for the base application's broader trust model.
 
-**Built with ADA**
+## Current limitations
 
-- *Yours could be here.*
+- RFM and cohort analysis require the user to map a stable customer identifier and transaction date; RFM additionally requires a monetary field.
+- Monthly cohort retention measures repeat purchase activity, not subscription survival or causal loyalty.
+- Segment thresholds are percentile-based and should be adapted before production use in a specific business.
+- Small cohorts are displayed, but comparative insight cards require at least five customers.
+- AI text can misinterpret valid calculations and must not be treated as causal proof.
+- The portfolio extension has been tested locally; a public deployment and final screenshots are still planned.
+
+## Roadmap
+
+- [x] Build and test the RFM calculation engine
+- [x] Add customer segment dashboards, actions, filters, and exports
+- [x] Build and test monthly cohort retention analysis
+- [x] Add evidence-backed retention signals and a cohort heatmap
+- [x] Add privacy-aware RFM and cohort summaries to the optional AI layer
+- [x] Test AI rendering, caching, invalidation, and failure isolation without paid API calls
+- [ ] Validate a small set of AI outputs with a real project API key
+- [ ] Add portfolio screenshots and a short walkthrough GIF
+- [ ] Deploy the customer intelligence branch as a public demo
+- [ ] Merge the completed portfolio release into `main`
+
+## Open-source origin and attribution
+
+This work builds on **ADA: Automated Data Analyst**, created by [Sainesh Nakra](https://github.com/saineshnakra). The original repository, product design, general analytics pipeline, documentation, and inherited assets remain attributable to the original author.
+
+- Original source: [saineshnakra/automated-data-analyst](https://github.com/saineshnakra/automated-data-analyst)
+- Original documentation: [docs/](docs/README.md)
+- Original contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Upstream roadmap: [ROADMAP.md](ROADMAP.md)
+
+The repository remains available under the [MIT License](LICENSE). Copyright notices from the original project are retained as required.
 
 ## License
 
-[MIT](https://github.com/saineshnakra/automated-data-analyst/blob/main/LICENSE) · Copyright (c) 2024 Sainesh Nakra
-
-Originally built at [github.com/saineshnakra/automated-data-analyst](https://github.com/saineshnakra/automated-data-analyst).
+[MIT](LICENSE) · Original project copyright © 2024 Sainesh Nakra.
