@@ -226,6 +226,9 @@ class AppSmokeTests(unittest.TestCase):
         )
         self.assertTrue(any(metric.label == "Cohorts" for metric in app.metric))
         self.assertTrue(any(metric.label == "Customers" and metric.value == "3" for metric in app.metric))
+        self.assertTrue(
+            any("AI customer insights are optional" in str(message.value) for message in app.info)
+        )
 
     def test_customer_orders_sample_opens_as_a_complete_rfm_demo(self):
         app = AppTest.from_file("app.py", default_timeout=90).run()

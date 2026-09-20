@@ -245,35 +245,57 @@ def maybe_generate_narrative(
     api_key: str,
     brief: BusinessBrief,
     business_context: str,
+    rfm_result=None,
+    cohort_result=None,
+    state_prefix: str = "executive",
+    model_label: str = "Strategy model",
+    button_label: str = "Generate AI strategic read",
+    spinner_label: str = "Connecting the evidence into a strategic read…",
 ):
     if not api_key or AI_LAYER_ERROR:
         return None, None
 
-    payload = build_ai_payload(brief, context=business_context)
+    payload = build_ai_payload(
+        brief,
+        context=business_context,
+        rfm_result=rfm_result,
+        cohort_result=cohort_result,
+    )
     fingerprint = hashlib.sha256(payload.encode()).hexdigest()
-    cached = st.session_state.get("ai_narrative")
-    cached_fingerprint = st.session_state.get("ai_narrative_fingerprint")
+    narrative_key = f"{state_prefix}_ai_narrative"
+    fingerprint_key = f"{state_prefix}_ai_narrative_fingerprint"
+    model_key = f"{state_prefix}_ai_narrative_model"
+    cached = st.session_state.get(narrative_key)
+    cached_fingerprint = st.session_state.get(fingerprint_key)
     selected_preset = st.selectbox(
-        "Strategy model",
+        model_label,
         list(MODEL_PRESETS),
         index=list(MODEL_PRESETS).index(DEFAULT_PRESET),
+        key=f"{state_prefix}_ai_model_preset",
         help="Luna is the cost-efficient default. Terra spends more reasoning on ambiguous decisions.",
     )
     config = MODEL_PRESETS[selected_preset]
 
-    if st.button("Generate AI strategic read", type="primary", width="stretch"):
+    if st.button(
+        button_label,
+        key=f"{state_prefix}_ai_generate",
+        type="primary",
+        width="stretch",
+    ):
         try:
-            with st.spinner("Connecting the evidence into a strategic read…"):
+            with st.spinner(spinner_label):
                 cached = generate_ai_narrative(
                     brief,
                     api_key=api_key,
                     config=config,
                     context=business_context,
+                    rfm_result=rfm_result,
+                    cohort_result=cohort_result,
                     safety_identifier=get_safety_identifier(),
                 )
-            st.session_state.ai_narrative = cached
-            st.session_state.ai_narrative_fingerprint = fingerprint
-            st.session_state.ai_narrative_model = config.model
+            st.session_state[narrative_key] = cached
+            st.session_state[fingerprint_key] = fingerprint
+            st.session_state[model_key] = config.model
             cached_fingerprint = fingerprint
         except Exception:  # API failures should never take down the deterministic product.
             st.error("The optional strategy agent is temporarily unavailable. Try again or switch models.")
@@ -281,7 +303,7 @@ def maybe_generate_narrative(
 
     if cached_fingerprint != fingerprint or not isinstance(cached, AINarrative):
         return None, None
-    model = str(st.session_state.get("ai_narrative_model", config.model))
+    model = str(st.session_state.get(model_key, config.model))
     return cached, model
 
 
@@ -657,6 +679,7 @@ with dashboard_tab:
     )
     render_dashboard(dataframe, roles)
 
+rfm_result = None
 with customer_tab:
     render_section_heading(
         "Customer intelligence",
@@ -748,6 +771,7 @@ with customer_tab:
         else:
             render_customer_segments(rfm_result)
 
+cohort_result = None
 with cohort_tab:
     render_section_heading(
         "Retention intelligence",
@@ -774,6 +798,39 @@ with cohort_tab:
             st.warning(f"ADA could not build retention cohorts: {error}")
         else:
             render_cohort_retention(cohort_result)
+
+            render_section_heading(
+                "Optional AI interpretation",
+                "Turn customer signals into a business response",
+                "The model receives only calculated RFM summaries, segment actions, and retention "
+                "metrics—not customer IDs, order IDs, or uploaded rows.",
+            )
+            if api_key and rfm_result is not None and not AI_LAYER_ERROR:
+                ai_columns = st.columns([0.42, 0.58], gap="large")
+                with ai_columns[0]:
+                    customer_narrative, customer_narrative_model = maybe_generate_narrative(
+                        api_key=api_key,
+                        brief=brief,
+                        business_context=business_context,
+                        rfm_result=rfm_result,
+                        cohort_result=cohort_result,
+                        state_prefix="customer",
+                        model_label="Customer insight model",
+                        button_label="Generate AI customer insights",
+                        spinner_label="Connecting RFM and retention evidence…",
+                    )
+                with ai_columns[1]:
+                    st.info(
+                        "The calculated segments and retention matrix remain authoritative. "
+                        "The AI layer only interprets those results and proposes testable actions."
+                    )
+                if customer_narrative and customer_narrative_model:
+                    render_ai_narrative(customer_narrative, model=customer_narrative_model)
+            elif not api_key:
+                st.info(
+                    "AI customer insights are optional. Add an OpenAI API key in the sidebar to "
+                    "generate them; all RFM and retention results above already work without AI."
+                )
 
 with explore_tab:
     render_explore(dataframe, roles)
