@@ -28,7 +28,7 @@ _HERE = Path(__file__).resolve().parent
 _LOCAL_MODULES = (  # dependency order: a module lists only modules above it
     "formatting", "schema", "timeseries", "anomalies", "forecasting", "aggregation",
     "analysis", "autovis", "file_io", "demo_data", "business_insights", "nlq",
-    "pipeline", "rfm", "ai_insights", "ui",
+    "pipeline", "cohort", "rfm", "ai_insights", "ui",
 )
 
 
@@ -89,6 +89,7 @@ def build_identifier() -> str:
 
 from analysis import column_profile  # noqa: E402 - the refresh above must run first
 from business_insights import BusinessBrief, analyze_business, build_business_report  # noqa: E402
+from cohort import CohortCalculationError, calculate_cohort_retention  # noqa: E402
 from demo_data import make_demo_data  # noqa: E402
 from file_io import list_excel_sheets, list_sample_datasets, read_tabular_file, safe_csv  # noqa: E402
 from nlq import QueryPlan, answer_question, suggested_questions  # noqa: E402
@@ -131,6 +132,7 @@ from ui import (  # noqa: E402
     render_chat_answer,
     render_chat_fallback,
     render_chat_rejected,
+    render_cohort_retention,
     render_customer_segments,
     render_dashboard,
     render_dataset_bar,
@@ -570,12 +572,22 @@ render_dataset_bar(source_name, dataframe, roles, focus=focus_value)
 render_brief(brief)
 render_kpis(brief)
 
-executive_tab, ask_tab, dashboard_tab, customer_tab, explore_tab, evidence_tab, data_tab = st.tabs(
+(
+    executive_tab,
+    ask_tab,
+    dashboard_tab,
+    customer_tab,
+    cohort_tab,
+    explore_tab,
+    evidence_tab,
+    data_tab,
+) = st.tabs(
     [
         "Executive brief",
         "Ask ADA",
         "Live dashboard",
         "Customer segments",
+        "Retention cohorts",
         "Explore",
         "Evidence ledger",
         "Data room",
@@ -735,6 +747,33 @@ with customer_tab:
             st.warning(f"ADA could not build customer segments: {error}")
         else:
             render_customer_segments(rfm_result)
+
+with cohort_tab:
+    render_section_heading(
+        "Retention intelligence",
+        "See whether customers come back",
+        "Customers are grouped by their first purchase month, then tracked across equal "
+        "monthly intervals. The same customer, date, value, and order mappings used by RFM "
+        "are reused here.",
+    )
+    if "None" in (customer_choice, date_choice):
+        st.info(
+            "Cohort retention needs a customer identifier and transaction date. "
+            "Map those fields in Customer segments first; monetary value and Order ID are optional."
+        )
+    else:
+        try:
+            cohort_result = calculate_cohort_retention(
+                rfm_dataframe,
+                customer_column=customer_choice,
+                date_column=date_choice,
+                monetary_column=None if monetary_choice == "None" else monetary_choice,
+                order_column=None if order_choice == "None" else order_choice,
+            )
+        except CohortCalculationError as error:
+            st.warning(f"ADA could not build retention cohorts: {error}")
+        else:
+            render_cohort_retention(cohort_result)
 
 with explore_tab:
     render_explore(dataframe, roles)

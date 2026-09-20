@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from cohort import CohortCalculationError, calculate_cohort_retention
+from cohort import CohortCalculationError, calculate_cohort_retention, weighted_retention
 
 
 class CohortRetentionTests(unittest.TestCase):
@@ -42,6 +42,22 @@ class CohortRetentionTests(unittest.TestCase):
 
         self.assertEqual(result.counts.iloc[0, 0], 1)
         self.assertEqual(result.counts.iloc[0, 1], 1)
+
+    def test_overall_retention_is_weighted_by_eligible_cohort_size(self):
+        frame = pd.DataFrame(
+            {
+                "Customer": ["A", "A", "B", "C", "C"],
+                "Date": ["2026-01-03", "2026-02-04", "2026-01-15", "2026-02-07", "2026-03-02"],
+            }
+        )
+        result = calculate_cohort_retention(
+            frame, customer_column="Customer", date_column="Date"
+        )
+
+        # January contributes 1 retained customer from a base of 2; February
+        # contributes 1 from 1. Weighted retention is 2/3, not (50%+100%)/2.
+        self.assertAlmostEqual(weighted_retention(result, 1), 2 / 3)
+        self.assertIsNone(weighted_retention(result, 99))
 
     def test_order_lines_are_netted_and_returns_do_not_create_activity(self):
         frame = pd.DataFrame(

@@ -40,6 +40,21 @@ class CohortResult:
     quality: CohortQualityReport
 
 
+def weighted_retention(result: CohortResult, month: int) -> float | None:
+    """Return size-weighted retention for cohorts old enough to observe a month."""
+
+    if month < 0 or month not in result.counts.columns:
+        return None
+    observed = result.counts[month].notna()
+    if not observed.any():
+        return None
+    eligible_sizes = result.cohort_sizes.loc[observed]
+    denominator = int(eligible_sizes.sum())
+    if denominator == 0:
+        return None
+    return float(result.counts.loc[observed, month].sum() / denominator)
+
+
 def _require_columns(
     dataframe: pd.DataFrame,
     *,

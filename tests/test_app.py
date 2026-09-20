@@ -96,7 +96,7 @@ class SourceSelectionTests(unittest.TestCase):
         app.segmented_control[0].set_value(None).run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(len(app.tabs), 7)
+        self.assertEqual(len(app.tabs), 8)
 
 
 class StaleModuleTests(unittest.TestCase):
@@ -162,7 +162,7 @@ class OptionalAiLayerTests(unittest.TestCase):
 
         self.assertFalse(app.exception)
         # The deterministic product is untouched: every tab, every KPI, every chart.
-        self.assertEqual(len(app.tabs), 7)
+        self.assertEqual(len(app.tabs), 8)
         self.assertEqual(len(app.metric), 4)
         self.assertEqual(len(app.get("plotly_chart")), 7)
         self.assertTrue(
@@ -182,6 +182,7 @@ class AppSmokeTests(unittest.TestCase):
                 "Ask ADA",
                 "Live dashboard",
                 "Customer segments",
+                "Retention cohorts",
                 "Explore",
                 "Evidence ledger",
                 "Data room",
@@ -220,6 +221,10 @@ class AppSmokeTests(unittest.TestCase):
         customer_picker = next(box for box in app.selectbox if box.label == "Customer ID")
         self.assertEqual(customer_picker.value, "Customer ID")
         self.assertTrue(any(button.label == "Download customer segments" for button in app.download_button))
+        self.assertTrue(
+            any(button.label == "Download cohort retention matrix" for button in app.download_button)
+        )
+        self.assertTrue(any(metric.label == "Cohorts" for metric in app.metric))
         self.assertTrue(any(metric.label == "Customers" and metric.value == "3" for metric in app.metric))
 
     def test_customer_orders_sample_opens_as_a_complete_rfm_demo(self):
@@ -241,7 +246,19 @@ class AppSmokeTests(unittest.TestCase):
         self.assertTrue(
             any(metric.label == "Customers" and metric.value == "330" for metric in app.metric)
         )
+        self.assertTrue(
+            any(
+                metric.label == "Acquired customers" and metric.value == "330"
+                for metric in app.metric
+            )
+        )
+        self.assertTrue(
+            any(metric.label == "Cohorts" and metric.value == "26" for metric in app.metric)
+        )
         self.assertTrue(any(button.label == "Download customer segments" for button in app.download_button))
+        self.assertTrue(
+            any(button.label == "Download cohort retention matrix" for button in app.download_button)
+        )
 
         segment_filter = next(box for box in app.selectbox if box.label == "Customer segment")
         segment_filter.set_value("At Risk").run()
@@ -313,7 +330,7 @@ class AppSmokeTests(unittest.TestCase):
         picker.set_value("SaaS Subscriptions").run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(len(app.tabs), 7)
+        self.assertEqual(len(app.tabs), 8)
         rendered = " ".join(str(block.value) for block in app.markdown)
         self.assertIn("SaaS Subscriptions · sample", rendered)
 

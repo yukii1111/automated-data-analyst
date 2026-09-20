@@ -18,14 +18,16 @@ from autovis import fold_small_series, recommend_chart
 from business_insights import BusinessBrief
 from file_io import safe_csv
 from forecasting import build_forecast, describe_backtest
-from formatting import format_number, format_period
+from formatting import format_number, format_percentage, format_period
 from nlq import QueryAnswer
 from schema import ColumnRoles
 
 if TYPE_CHECKING:  # The AI layer is optional; ui must import without it.
     from ai_insights import AINarrative
+    from cohort import CohortResult
     from rfm import RFMResult
 
+from cohort import weighted_retention
 from rfm import build_segment_actions
 
 ACCENT = "#635BFF"
@@ -577,6 +579,111 @@ def render_customer_segments(result: RFMResult) -> None:
                     ("Invalid monetary value", quality.invalid_monetary_rows),
                     ("Missing order ID · row fallback used", quality.missing_order_id_rows),
                     ("Customers without a positive purchase", quality.customers_excluded_without_purchase),
+                ],
+                columns=["Check", "Count"],
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+
+
+def render_cohort_retention(result: CohortResult) -> None:
+    """Render monthly logo retention while preserving unobserved future cells."""
+
+    kpis = st.columns(4)
+    kpis[0].metric("Acquired customers", f"{int(result.cohort_sizes.sum()):,}")
+    kpis[1].metric("Cohorts", f"{len(result.cohort_sizes):,}")
+    for column, month in zip(kpis[2:], (1, 3), strict=True):
+        retention = weighted_retention(result, month)
+        column.metric(
+            f"Month {month} retention",
+            "—" if retention is None else format_percentage(retention * 100),
+        )
+    st.caption(
+        f"Observation ends {result.observation_end:%b %Y}. Retention is weighted by cohort "
+        "size; blank cells are future periods, while 0% means the period was observed and no "
+        "customer returned."
+    )
+
+    available_months = len(result.retention.columns)
+    if available_months > 6:
+        shown_months = st.slider(
+            "Months to display",
+            min_value=3,
+            max_value=min(available_months, 24),
+            value=min(12, available_months),
+            help="Limit the visible horizon so recent retention patterns remain readable.",
+        )
+    else:
+        shown_months = available_months
+    display = result.retention.iloc[:, :shown_months]
+    cohort_labels = [
+        f"{month:%b %Y} · n={result.cohort_sizes.loc[month]:,}" for month in display.index
+    ]
+    heatmap_text = display.map(
+        lambda value: "—" if pd.isna(value) else f"{float(value):.0%}"
+    ).to_numpy()
+    heatmap = go.Figure(
+        go.Heatmap(
+            z=display.to_numpy(dtype=float, na_value=float("nan")),
+            x=[f"Month {month}" for month in display.columns],
+            y=cohort_labels,
+            text=heatmap_text,
+            texttemplate="%{text}",
+            zmin=0,
+            zmax=1,
+            colorscale=[
+                [0.0, "#F5F7FF"],
+                [0.35, "#DCE8FF"],
+                [0.65, "#9DDBD1"],
+                [1.0, "#7467E8"],
+            ],
+            colorbar={"title": "Retention", "tickformat": ".0%"},
+            hovertemplate="%{y}<br>%{x}: %{z:.1%}<extra></extra>",
+            xgap=2,
+            ygap=2,
+        )
+    )
+    heatmap.update_layout(title="Monthly customer retention by acquisition cohort")
+    heatmap.update_yaxes(autorange="reversed", title="First purchase month · cohort size")
+    heatmap.update_xaxes(title="Months since first purchase", side="top")
+    chart_height = min(820, max(430, 155 + len(display) * 25))
+    st.plotly_chart(
+        style_chart(heatmap, height=chart_height),
+        width="stretch",
+        config={"displayModeBar": False},
+    )
+
+    st.markdown('<div class="section-label">Cohort sizes</div>', unsafe_allow_html=True)
+    size_table = result.cohort_sizes.rename_axis("Cohort month").reset_index()
+    size_table["Cohort month"] = size_table["Cohort month"].dt.strftime("%b %Y")
+    st.dataframe(size_table, hide_index=True, width="stretch")
+
+    export = result.retention.copy()
+    export.columns = [f"Month {month}" for month in export.columns]
+    export.insert(0, "Cohort size", result.cohort_sizes)
+    export = export.reset_index()
+    export["Cohort month"] = export["Cohort month"].dt.strftime("%Y-%m")
+    st.download_button(
+        "Download cohort retention matrix",
+        data=safe_csv(export).encode("utf-8-sig"),
+        file_name="ada_cohort_retention.csv",
+        mime="text/csv",
+        width="stretch",
+    )
+
+    quality = result.quality
+    with st.expander("Cohort data quality audit"):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    ("Input rows", quality.input_rows),
+                    ("Rows used", quality.rows_used),
+                    ("Rows dropped", quality.dropped_rows),
+                    ("Missing customer ID", quality.missing_customer_rows),
+                    ("Invalid transaction date", quality.invalid_date_rows),
+                    ("Invalid monetary value", quality.invalid_monetary_rows),
+                    ("Missing order ID · row fallback used", quality.missing_order_id_rows),
                 ],
                 columns=["Check", "Count"],
             ),
