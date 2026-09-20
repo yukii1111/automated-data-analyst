@@ -25,6 +25,8 @@ if TYPE_CHECKING:  # The AI layer is optional; ui must import without it.
     from ai_insights import AINarrative
     from rfm import RFMResult
 
+from rfm import build_segment_actions
+
 ACCENT = "#635BFF"
 LIME = "#C7F36B"  # Brand accent for surfaces and text. Too light to be a data mark.
 
@@ -483,6 +485,22 @@ def render_customer_segments(result: RFMResult) -> None:
         hide_index=True,
         width="stretch",
     )
+
+    st.markdown('<div class="section-label">Recommended segment actions</div>', unsafe_allow_html=True)
+    action_columns = st.columns(2, gap="medium")
+    for index, item in enumerate(build_segment_actions(result)):
+        with action_columns[index % 2]:
+            colour = RFM_SEGMENT_COLORS.get(item.segment, RFM_SEGMENT_COLORS["Others"])
+            st.markdown(
+                f"""
+                <article class="recommendation" style="border-top: 3px solid {colour}">
+                  <div class="recommendation-top"><span class="priority">{escape(item.priority)}</span><h3>{escape(item.objective)}</h3></div>
+                  <p><strong>{escape(item.segment)}</strong> · {escape(item.action)}</p>
+                  <div class="why">WHY · {escape(item.rationale)}</div>
+                </article>
+                """,
+                unsafe_allow_html=True,
+            )
 
     table_columns = [
         result.customer_column,

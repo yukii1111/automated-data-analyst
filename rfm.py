@@ -44,6 +44,96 @@ class RFMResult:
     quality: RFMQualityReport
 
 
+@dataclass(frozen=True)
+class RFMSegmentAction:
+    """A segment-specific next action backed by the calculated customer table."""
+
+    segment: str
+    priority: str
+    objective: str
+    action: str
+    rationale: str
+    customers: int
+    monetary: float
+    monetary_share: float
+
+
+_SEGMENT_ACTIONS = {
+    "At Risk": (
+        1,
+        "Recover valuable customers",
+        "Run a targeted win-back campaign, then compare reactivation and margin against a holdout group.",
+    ),
+    "Champions": (
+        2,
+        "Protect your best customers",
+        "Offer early access, recognition, or referral rewards without relying on blanket discounts.",
+    ),
+    "Potential Loyalists": (
+        3,
+        "Create the next repeat purchase",
+        "Use a replenishment reminder or complementary-product offer to move these customers into loyalty.",
+    ),
+    "Loyal Customers": (
+        4,
+        "Deepen the relationship",
+        "Test cross-sell bundles or tiered loyalty benefits based on purchase history.",
+    ),
+    "New Customers": (
+        5,
+        "Accelerate activation",
+        "Trigger a welcome journey that explains value and gives a clear reason to make a second purchase.",
+    ),
+    "Needs Attention": (
+        6,
+        "Prevent further decline",
+        "Review their last purchase and send a relevant reminder before they become fully inactive.",
+    ),
+    "Lost Customers": (
+        7,
+        "Control reacquisition cost",
+        "Use a low-cost automated reactivation test and suppress customers who remain unresponsive.",
+    ),
+    "Others": (
+        8,
+        "Learn before spending",
+        "Monitor behaviour and collect more transactions before assigning a high-cost campaign.",
+    ),
+}
+
+
+def build_segment_actions(result: RFMResult) -> tuple[RFMSegmentAction, ...]:
+    """Create actionable, evidence-backed guidance for every observed segment."""
+
+    customers = result.customers
+    total_monetary = float(customers["Monetary"].sum())
+    grouped = customers.groupby("Segment", observed=True).agg(
+        Customers=(result.customer_column, "size"), Monetary=("Monetary", "sum")
+    )
+    actions = []
+    for segment, row in grouped.iterrows():
+        rank, objective, action = _SEGMENT_ACTIONS.get(str(segment), _SEGMENT_ACTIONS["Others"])
+        count = int(row["Customers"])
+        monetary = float(row["Monetary"])
+        share = monetary / total_monetary if total_monetary else 0.0
+        actions.append(
+            RFMSegmentAction(
+                segment=str(segment),
+                priority=f"P{rank}",
+                objective=objective,
+                action=action,
+                rationale=(
+                    f"{count:,} customers contribute {share:.1%} of customer value "
+                    f"({monetary:,.2f})."
+                ),
+                customers=count,
+                monetary=monetary,
+                monetary_share=share,
+            )
+        )
+    return tuple(sorted(actions, key=lambda item: (int(item.priority[1:]), -item.monetary)))
+
+
 def _require_columns(
     dataframe: pd.DataFrame,
     *,

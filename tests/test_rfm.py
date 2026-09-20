@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from rfm import RFMCalculationError, calculate_rfm
+from rfm import RFMCalculationError, build_segment_actions, calculate_rfm
 
 
 class RFMCalculationTests(unittest.TestCase):
@@ -214,6 +214,32 @@ class RFMCalculationTests(unittest.TestCase):
         )
 
         pd.testing.assert_frame_equal(frame, original)
+
+    def test_segment_actions_are_specific_and_backed_by_result_values(self):
+        frame = pd.DataFrame(
+            {
+                "Customer": ["A", "A", "A", "B", "C"],
+                "Date": ["2026-05-10", "2026-05-09", "2026-05-08", "2026-04-01", "2026-01-01"],
+                "Order": ["A1", "A2", "A3", "B1", "C1"],
+                "Amount": [300, 250, 200, 100, 10],
+            }
+        )
+        result = calculate_rfm(
+            frame,
+            customer_column="Customer",
+            date_column="Date",
+            monetary_column="Amount",
+            order_column="Order",
+        )
+
+        actions = build_segment_actions(result)
+        champions = next(item for item in actions if item.segment == "Champions")
+
+        self.assertEqual(champions.customers, 1)
+        self.assertEqual(champions.monetary, 750)
+        self.assertIn("1 customers", champions.rationale)
+        self.assertAlmostEqual(sum(item.monetary_share for item in actions), 1.0)
+        self.assertEqual(len(actions), result.customers["Segment"].nunique())
 
 
 if __name__ == "__main__":
