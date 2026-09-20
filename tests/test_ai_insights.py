@@ -21,8 +21,10 @@ from ai_insights import (
     plan_query_with_ai,
 )
 from business_insights import analyze_business
+from cohort import calculate_cohort_retention
 from demo_data import make_demo_data
 from nlq import QueryPlan, execute_plan
+from rfm import calculate_rfm
 from schema import detect_roles
 
 
@@ -90,6 +92,83 @@ class AIInsightTests(unittest.TestCase):
         self.assertIs(arguments["text_format"], AINarrative)
         self.assertEqual(arguments["safety_identifier"], "anonymous-session")
         self.assertFalse(arguments["store"])
+
+    def test_customer_intelligence_payload_contains_aggregates_but_no_customer_ids(self):
+        transactions = pd.DataFrame(
+            {
+                "Customer ID": ["PRIVATE-CUSTOMER-A", "PRIVATE-CUSTOMER-A", "PRIVATE-CUSTOMER-B"],
+                "Order Date": ["2026-01-02", "2026-02-02", "2026-01-15"],
+                "Order ID": ["PRIVATE-ORDER-1", "PRIVATE-ORDER-2", "PRIVATE-ORDER-3"],
+                "Revenue": [100.0, 120.0, 80.0],
+            }
+        )
+        rfm_result = calculate_rfm(
+            transactions,
+            customer_column="Customer ID",
+            date_column="Order Date",
+            monetary_column="Revenue",
+            order_column="Order ID",
+        )
+        cohort_result = calculate_cohort_retention(
+            transactions,
+            customer_column="Customer ID",
+            date_column="Order Date",
+            monetary_column="Revenue",
+            order_column="Order ID",
+        )
+
+        payload = build_ai_payload(
+            self.brief,
+            context="Customer retention review",
+            rfm_result=rfm_result,
+            cohort_result=cohort_result,
+        )
+        parsed = json.loads(payload)
+
+        self.assertIn("rfm_customer_intelligence", parsed)
+        self.assertIn("cohort_retention_intelligence", parsed)
+        self.assertEqual(parsed["rfm_customer_intelligence"]["customer_count"], 2)
+        self.assertNotIn("PRIVATE-CUSTOMER", payload)
+        self.assertNotIn("PRIVATE-ORDER", payload)
+
+    def test_generation_sends_customer_summaries_through_the_typed_contract(self):
+        transactions = pd.DataFrame(
+            {
+                "Customer": ["A", "A", "B"],
+                "Date": ["2026-01-01", "2026-02-01", "2026-01-05"],
+                "Amount": [100.0, 150.0, 80.0],
+            }
+        )
+        rfm_result = calculate_rfm(
+            transactions,
+            customer_column="Customer",
+            date_column="Date",
+            monetary_column="Amount",
+        )
+        cohort_result = calculate_cohort_retention(
+            transactions,
+            customer_column="Customer",
+            date_column="Date",
+            monetary_column="Amount",
+        )
+        client = FakeClient(self.narrative)
+
+        generate_ai_narrative(
+            self.brief,
+            api_key="test-key",
+            config=MODEL_PRESETS["Fast · Luna"],
+            context="Customer review",
+            rfm_result=rfm_result,
+            cohort_result=cohort_result,
+            safety_identifier="anonymous-session",
+            client=client,
+        )
+
+        assert client.responses.arguments is not None
+        sent = json.loads(client.responses.arguments["input"])
+        self.assertIn("rfm_customer_intelligence", sent)
+        self.assertIn("cohort_retention_intelligence", sent)
+        self.assertIs(client.responses.arguments["text_format"], AINarrative)
 
     def test_api_key_is_required_only_for_optional_narrative(self):
         with self.assertRaisesRegex(ValueError, "API key"):

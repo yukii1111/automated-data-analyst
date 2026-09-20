@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype
 from pydantic import BaseModel, Field
 
 from business_insights import BusinessBrief
+from cohort import build_cohort_insights, weighted_retention
 from nlq import AGGREGATION_LABELS, QueryAnswer, QueryPlan, ValueFilter, execute_plan
+from rfm import build_segment_actions
 from schema import ColumnRoles, looks_like_identifier
+
+if TYPE_CHECKING:
+    from cohort import CohortResult
+    from rfm import RFMResult
 
 
 class AIAction(BaseModel):
@@ -60,7 +66,37 @@ If evidence is insufficient, state the limitation instead of filling the gap.
 Write for an operator who needs the decision, not an analytics lecture."""
 
 
-def build_ai_payload(brief: BusinessBrief, *, context: str = "") -> str:
+def _rfm_ai_summary(result: RFMResult) -> dict[str, object]:
+    customers = result.customers
+    return {
+        "analysis_date": result.analysis_date.date().isoformat(),
+        "customer_count": len(customers),
+        "total_customer_value": float(customers["Monetary"].sum()),
+        "average_orders": float(customers["Frequency"].mean()),
+        "median_recency_days": float(customers["Recency"].median()),
+        "segments": [asdict(item) for item in build_segment_actions(result)],
+    }
+
+
+def _cohort_ai_summary(result: CohortResult) -> dict[str, object]:
+    return {
+        "observation_end": result.observation_end.date().isoformat(),
+        "acquired_customers": int(result.cohort_sizes.sum()),
+        "cohort_count": len(result.cohort_sizes),
+        "weighted_retention": {
+            f"month_{month}": weighted_retention(result, month) for month in (1, 3, 6)
+        },
+        "computed_insights": [asdict(item) for item in build_cohort_insights(result)],
+    }
+
+
+def build_ai_payload(
+    brief: BusinessBrief,
+    *,
+    context: str = "",
+    rfm_result: RFMResult | None = None,
+    cohort_result: CohortResult | None = None,
+) -> str:
     """Serialize only computed evidence; raw uploaded rows never enter the prompt."""
     payload = {
         "business_context": context.strip() or "Not provided",
@@ -74,6 +110,10 @@ def build_ai_payload(brief: BusinessBrief, *, context: str = "") -> str:
             "material watchouts. Anchor every action to supplied evidence."
         ),
     }
+    if rfm_result is not None:
+        payload["rfm_customer_intelligence"] = _rfm_ai_summary(rfm_result)
+    if cohort_result is not None:
+        payload["cohort_retention_intelligence"] = _cohort_ai_summary(cohort_result)
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -83,6 +123,8 @@ def generate_ai_narrative(
     api_key: str,
     config: AIConfig,
     context: str = "",
+    rfm_result: RFMResult | None = None,
+    cohort_result: CohortResult | None = None,
     safety_identifier: str,
     client: _Client | None = None,
 ) -> AINarrative:
@@ -97,7 +139,12 @@ def generate_ai_narrative(
     response = client.responses.parse(
         model=config.model,
         instructions=SYSTEM_INSTRUCTIONS,
-        input=build_ai_payload(brief, context=context),
+        input=build_ai_payload(
+            brief,
+            context=context,
+            rfm_result=rfm_result,
+            cohort_result=cohort_result,
+        ),
         text_format=AINarrative,
         reasoning={"effort": config.reasoning_effort},
         max_output_tokens=1_400,
