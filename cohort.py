@@ -40,6 +40,17 @@ class CohortResult:
     quality: CohortQualityReport
 
 
+@dataclass(frozen=True)
+class CohortInsight:
+    """One decision-friendly cohort signal with its calculation exposed."""
+
+    title: str
+    value: str
+    statement: str
+    calculation: str
+    tone: str = "neutral"
+
+
 def weighted_retention(result: CohortResult, month: int) -> float | None:
     """Return size-weighted retention for cohorts old enough to observe a month."""
 
@@ -53,6 +64,103 @@ def weighted_retention(result: CohortResult, month: int) -> float | None:
     if denominator == 0:
         return None
     return float(result.counts.loc[observed, month].sum() / denominator)
+
+
+def build_cohort_insights(
+    result: CohortResult, *, minimum_cohort_size: int = 5
+) -> tuple[CohortInsight, ...]:
+    """Summarize scale and retention without promoting tiny cohorts as winners."""
+
+    insights: list[CohortInsight] = []
+    total_customers = int(result.cohort_sizes.sum())
+    largest_month = result.cohort_sizes.idxmax()
+    largest_size = int(result.cohort_sizes.loc[largest_month])
+    insights.append(
+        CohortInsight(
+            title="Largest acquisition cohort",
+            value=f"{largest_size:,}",
+            statement=(
+                f"{largest_month:%b %Y} acquired {largest_size:,} customers, "
+                f"{largest_size / total_customers:.1%} of all acquired customers."
+            ),
+            calculation="Largest Month 0 cohort size ÷ total acquired customers",
+        )
+    )
+
+    month_one = weighted_retention(result, 1)
+    if month_one is not None:
+        observed = result.counts[1].notna()
+        retained = int(result.counts.loc[observed, 1].sum())
+        eligible = int(result.cohort_sizes.loc[observed].sum())
+        insights.append(
+            CohortInsight(
+                title="Month 1 retention baseline",
+                value=f"{month_one:.1%}",
+                statement=(
+                    f"{retained:,} of {eligible:,} customers returned one month after "
+                    "their first purchase."
+                ),
+                calculation="Month 1 returning customers ÷ eligible acquired customers",
+            )
+        )
+
+        reliable = observed & result.cohort_sizes.ge(minimum_cohort_size)
+        reliable_months = result.cohort_sizes.index[reliable]
+        if len(reliable_months) >= 2:
+            latest_month = reliable_months.max()
+            earlier_months = reliable_months[reliable_months != latest_month]
+            latest_size = int(result.cohort_sizes.loc[latest_month])
+            latest_retained = int(result.counts.loc[latest_month, 1])
+            latest_rate = latest_retained / latest_size
+            prior_size = int(result.cohort_sizes.loc[earlier_months].sum())
+            prior_retained = int(result.counts.loc[earlier_months, 1].sum())
+            prior_rate = prior_retained / prior_size
+            difference = (latest_rate - prior_rate) * 100
+            direction = "above" if difference >= 0 else "below"
+            insights.append(
+                CohortInsight(
+                    title="Latest reliable cohort",
+                    value=f"{difference:+.1f} pp",
+                    statement=(
+                        f"{latest_month:%b %Y} retained {latest_retained:,} of "
+                        f"{latest_size:,} customers at Month 1 ({latest_rate:.1%}), "
+                        f"{abs(difference):.1f} points {direction} the earlier reliable-cohort baseline."
+                    ),
+                    calculation=(
+                        f"Latest Month 1 rate − weighted prior rate; cohorts require n ≥ "
+                        f"{minimum_cohort_size}"
+                    ),
+                    tone="positive" if difference >= 0 else "negative",
+                )
+            )
+
+    if 3 in result.retention.columns:
+        reliable_three = result.retention[3].notna() & result.cohort_sizes.ge(
+            minimum_cohort_size
+        )
+        if reliable_three.any():
+            rates = result.retention.loc[reliable_three, 3]
+            best_month = rates.idxmax()
+            best_size = int(result.cohort_sizes.loc[best_month])
+            best_retained = int(result.counts.loc[best_month, 3])
+            best_rate = float(rates.loc[best_month])
+            insights.append(
+                CohortInsight(
+                    title="Strongest Month 3 cohort",
+                    value=f"{best_rate:.1%}",
+                    statement=(
+                        f"{best_month:%b %Y} had {best_retained:,} of {best_size:,} customers "
+                        "purchase again in Month 3."
+                    ),
+                    calculation=(
+                        f"Highest observed Month 3 rate among cohorts with n ≥ "
+                        f"{minimum_cohort_size}"
+                    ),
+                    tone="positive",
+                )
+            )
+
+    return tuple(insights)
 
 
 def _require_columns(

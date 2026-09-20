@@ -259,6 +259,9 @@ class AppSmokeTests(unittest.TestCase):
         self.assertTrue(
             any(button.label == "Download cohort retention matrix" for button in app.download_button)
         )
+        rendered = " ".join(str(block.value) for block in app.markdown)
+        self.assertIn("Month 1 retention baseline", rendered)
+        self.assertIn("Latest reliable cohort", rendered)
 
         segment_filter = next(box for box in app.selectbox if box.label == "Customer segment")
         segment_filter.set_value("At Risk").run()

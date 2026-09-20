@@ -2,7 +2,12 @@ import unittest
 
 import pandas as pd
 
-from cohort import CohortCalculationError, calculate_cohort_retention, weighted_retention
+from cohort import (
+    CohortCalculationError,
+    build_cohort_insights,
+    calculate_cohort_retention,
+    weighted_retention,
+)
 
 
 class CohortRetentionTests(unittest.TestCase):
@@ -80,6 +85,32 @@ class CohortRetentionTests(unittest.TestCase):
         self.assertEqual(result.counts.iloc[0, 0], 1)
         self.assertEqual(result.counts.iloc[0, 1], 1)
         self.assertEqual(result.counts.iloc[0, 2], 0)
+
+    def test_insights_weight_baselines_and_ignore_tiny_cohorts_as_latest(self):
+        rows = []
+        for customer in "ABCDE":
+            rows.append((customer, "2026-01-05"))
+        for customer in "ABC":
+            rows.append((customer, "2026-02-05"))
+        for customer in "FGHIJ":
+            rows.append((customer, "2026-02-10"))
+        for customer in "FGHI":
+            rows.append((customer, "2026-03-10"))
+        # A later one-person cohort has 100% Month 1 retention, but must not
+        # displace the latest cohort meeting the n >= 5 reliability threshold.
+        rows.extend([("K", "2026-03-12"), ("K", "2026-04-12")])
+        frame = pd.DataFrame(rows, columns=["Customer", "Date"])
+        result = calculate_cohort_retention(
+            frame, customer_column="Customer", date_column="Date"
+        )
+
+        insights = build_cohort_insights(result)
+        by_title = {item.title: item for item in insights}
+
+        self.assertEqual(by_title["Month 1 retention baseline"].value, "72.7%")
+        self.assertIn("Feb 2026", by_title["Latest reliable cohort"].statement)
+        self.assertEqual(by_title["Latest reliable cohort"].value, "+20.0 pp")
+        self.assertNotIn("Mar 2026", by_title["Latest reliable cohort"].statement)
 
     def test_quality_report_tracks_invalid_rows_and_missing_order_ids(self):
         frame = pd.DataFrame(

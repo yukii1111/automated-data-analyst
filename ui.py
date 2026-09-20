@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # The AI layer is optional; ui must import without it.
     from cohort import CohortResult
     from rfm import RFMResult
 
-from cohort import weighted_retention
+from cohort import build_cohort_insights, weighted_retention
 from rfm import build_segment_actions
 
 ACCENT = "#635BFF"
@@ -652,6 +652,19 @@ def render_cohort_retention(result: CohortResult) -> None:
         style_chart(heatmap, height=chart_height),
         width="stretch",
         config={"displayModeBar": False},
+    )
+
+    st.markdown('<div class="section-label">Retention signals</div>', unsafe_allow_html=True)
+    insight_cards = [
+        f'<article class="evidence {escape(item.tone)}">'
+        f'<div class="evidence-value">{escape(item.value)}</div>'
+        f'<h3>{escape(item.title)}</h3><p>{escape(item.statement)}</p>'
+        f'<p class="calculation">CALC · {escape(item.calculation)}</p></article>'
+        for item in build_cohort_insights(result)
+    ]
+    st.markdown(
+        f'<section class="evidence-grid">{"".join(insight_cards)}</section>',
+        unsafe_allow_html=True,
     )
 
     st.markdown('<div class="section-label">Cohort sizes</div>', unsafe_allow_html=True)
