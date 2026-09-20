@@ -243,6 +243,20 @@ class AppSmokeTests(unittest.TestCase):
         )
         self.assertTrue(any(button.label == "Download customer segments" for button in app.download_button))
 
+        segment_filter = next(box for box in app.selectbox if box.label == "Customer segment")
+        segment_filter.set_value("At Risk").run()
+
+        self.assertFalse(app.exception)
+        self.assertTrue(
+            any(
+                metric.label == "Selected customers" and metric.value == "73"
+                for metric in app.metric
+            )
+        )
+        self.assertTrue(
+            any(button.label == "Download At Risk customers" for button in app.download_button)
+        )
+
     def test_drill_down_focuses_the_whole_analysis(self):
         app = AppTest.from_file("app.py", default_timeout=45).run()
         focus_box = next(box for box in app.selectbox if box.label.startswith("Drill into"))

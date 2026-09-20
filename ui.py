@@ -16,6 +16,7 @@ from aggregation import build_trend, driver_frame, heatmap_frame, segment_frame
 from anomalies import detect_anomalies
 from autovis import fold_small_series, recommend_chart
 from business_insights import BusinessBrief
+from file_io import safe_csv
 from forecasting import build_forecast, describe_backtest
 from formatting import format_number, format_period
 from nlq import QueryAnswer
@@ -487,8 +488,9 @@ def render_customer_segments(result: RFMResult) -> None:
     )
 
     st.markdown('<div class="section-label">Recommended segment actions</div>', unsafe_allow_html=True)
+    segment_actions = build_segment_actions(result)
     action_columns = st.columns(2, gap="medium")
-    for index, item in enumerate(build_segment_actions(result)):
+    for index, item in enumerate(segment_actions):
         with action_columns[index % 2]:
             colour = RFM_SEGMENT_COLORS.get(item.segment, RFM_SEGMENT_COLORS["Others"])
             st.markdown(
@@ -514,12 +516,50 @@ def render_customer_segments(result: RFMResult) -> None:
         "RFM Score",
         "RFM Code",
     ]
-    st.markdown('<div class="section-label">Customer detail</div>', unsafe_allow_html=True)
-    st.dataframe(customers[table_columns], hide_index=True, width="stretch", height=420)
+    st.markdown('<div class="section-label">Segment activation workspace</div>', unsafe_allow_html=True)
+    segment_choice = st.selectbox(
+        "Customer segment",
+        ["All segments", *(item.segment for item in segment_actions)],
+        help="Focus the customer list and export on one actionable RFM segment.",
+    )
+    if segment_choice == "All segments":
+        selected_customers = customers
+    else:
+        selected_customers = customers.loc[customers["Segment"] == segment_choice]
+
+    selected_value = float(selected_customers["Monetary"].sum())
+    selected_metrics = st.columns(4)
+    selected_metrics[0].metric("Selected customers", f"{len(selected_customers):,}")
+    selected_metrics[1].metric(
+        "Selected value",
+        format_number(
+            selected_value,
+            result.monetary_column,
+            column_values=customers["Monetary"],
+        ),
+    )
+    selected_metrics[2].metric(
+        "Average orders", f"{selected_customers['Frequency'].mean():,.1f}"
+    )
+    selected_metrics[3].metric(
+        "Average recency", f"{selected_customers['Recency'].mean():,.1f} days"
+    )
+    st.caption(
+        "Use this customer-level list as a campaign audience, then measure response against "
+        "a holdout group before rolling the action out broadly."
+    )
+    export_frame = selected_customers[table_columns]
+    st.dataframe(export_frame, hide_index=True, width="stretch", height=420)
+    download_label = (
+        "Download customer segments"
+        if segment_choice == "All segments"
+        else f"Download {segment_choice} customers"
+    )
+    export_slug = segment_choice.lower().replace(" ", "_")
     st.download_button(
-        "Download customer segments",
-        data=customers[table_columns].to_csv(index=False).encode("utf-8-sig"),
-        file_name="ada_customer_segments.csv",
+        download_label,
+        data=safe_csv(export_frame).encode("utf-8-sig"),
+        file_name=f"ada_{export_slug}_customers.csv",
         mime="text/csv",
         width="stretch",
     )
