@@ -7,14 +7,20 @@
 
 **A portfolio extension of the open-source [Automated Data Analyst](https://github.com/saineshnakra/automated-data-analyst), adding transaction-aware RFM segmentation, cohort retention analysis, and privacy-conscious AI customer insights.**
 
-[Current portfolio branch](https://github.com/yukii1111/automated-data-analyst/tree/feature/cohort-retention) ·
+[Repository](https://github.com/yukii1111/automated-data-analyst) ·
 [Original project](https://github.com/saineshnakra/automated-data-analyst) ·
 [Architecture](docs/architecture.md) ·
 [Privacy](docs/privacy.md)
 
-> **Project status:** active portfolio development. The customer intelligence features currently live on `feature/cohort-retention` and will move to `main` after documentation, screenshots, and deployment are complete.
+> **Project status:** portfolio release on `main`. The deterministic analytics workflow is complete and the optional AI layer is isolated so the application remains useful without an API key.
 
 ![ADA customer intelligence workspace with RFM metrics and customer segments](assets/readme/customer-segments.png)
+
+## 中文项目介绍
+
+这是一个面向电商、用户增长和运营分析场景的自动化客户洞察工具。用户可以上传 CSV 或 Excel 交易数据，系统会在本地完成字段识别、数据清洗和指标计算，并生成 RFM 客户分层、月度 Cohort 留存热力图、可执行运营建议及可下载结果。项目在开源 Automated Data Analyst 的基础上新增了完整的客户智能分析链路，并通过退货冲销、重复订单行、缺失 ID、小样本 Cohort 等边界测试保证计算可靠性。
+
+可选的 AI 模块只接收已经聚合的客户指标，不上传原始交易行、客户 ID 或订单 ID；没有 OpenAI API Key 时，全部确定性分析、图表和导出功能仍可正常使用。这个项目重点展示了我将数据分析方法转化为可交互产品的能力，包括业务需求拆解、Python 数据处理、Streamlit 产品实现、隐私设计和自动化测试。
 
 ## Why this extension exists
 
@@ -130,7 +136,6 @@ It contains no real customer data. The source is available at [`samples/customer
 ```powershell
 git clone https://github.com/yukii1111/automated-data-analyst.git
 cd automated-data-analyst
-git switch feature/cohort-retention
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
@@ -142,7 +147,6 @@ streamlit run app.py
 ```bash
 git clone https://github.com/yukii1111/automated-data-analyst.git
 cd automated-data-analyst
-git switch feature/cohort-retention
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -232,7 +236,7 @@ See the inherited [privacy documentation](docs/privacy.md) and [security policy]
 - Segment thresholds are percentile-based and should be adapted before production use in a specific business.
 - Small cohorts are displayed, but comparative insight cards require at least five customers.
 - AI text can misinterpret valid calculations and must not be treated as causal proof.
-- The portfolio extension has been tested locally; a public deployment and final screenshots are still planned.
+- The hosted demo is intended for synthetic or non-sensitive data; confidential datasets should be analyzed locally.
 
 ## Roadmap
 
@@ -245,8 +249,8 @@ See the inherited [privacy documentation](docs/privacy.md) and [security policy]
 - [ ] Validate a small set of AI outputs with a real project API key
 - [x] Add portfolio screenshots
 - [ ] Record a short walkthrough GIF
-- [ ] Deploy the customer intelligence branch as a public demo
-- [ ] Merge the completed portfolio release into `main`
+- [ ] Deploy the customer intelligence release as a public demo
+- [x] Merge the completed portfolio release into `main`
 
 ## Open-source origin and attribution
 
