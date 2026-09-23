@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.59-ff4b4b?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/tests-312%20passed-20a779)](#testing-and-quality)
+[![Tests](https://img.shields.io/github/actions/workflow/status/yukii1111/automated-data-analyst/ci.yml?branch=main&label=tests)](https://github.com/yukii1111/automated-data-analyst/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-20a779.svg)](LICENSE)
 
 **A portfolio extension of the open-source [Automated Data Analyst](https://github.com/saineshnakra/automated-data-analyst), adding transaction-aware RFM segmentation, cohort retention analysis, and privacy-conscious AI customer insights.**
@@ -163,7 +163,7 @@ Alternatively, a local deployment can provide `OPENAI_API_KEY` through its envir
 
 ## Testing and quality
 
-The current portfolio branch passes **312 automated tests** using Python's built-in `unittest` framework.
+The current portfolio branch passes **357 automated tests** using Python's built-in `unittest` framework.
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
