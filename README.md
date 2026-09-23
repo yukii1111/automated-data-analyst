@@ -7,6 +7,7 @@
 
 **A portfolio extension of the open-source [Automated Data Analyst](https://github.com/saineshnakra/automated-data-analyst), adding transaction-aware RFM segmentation, cohort retention analysis, and privacy-conscious AI customer insights.**
 
+[Live demo](https://ada-customer-intelligence.streamlit.app/) ·
 [Repository](https://github.com/yukii1111/automated-data-analyst) ·
 [Original project](https://github.com/saineshnakra/automated-data-analyst) ·
 [Architecture](docs/architecture.md) ·
@@ -249,7 +250,7 @@ See the inherited [privacy documentation](docs/privacy.md) and [security policy]
 - [ ] Validate a small set of AI outputs with a real project API key
 - [x] Add portfolio screenshots
 - [ ] Record a short walkthrough GIF
-- [ ] Deploy the customer intelligence release as a public demo
+- [x] Deploy the customer intelligence release as a public demo
 - [x] Merge the completed portfolio release into `main`
 
 ## Open-source origin and attribution
